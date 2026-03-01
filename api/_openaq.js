@@ -1,4 +1,4 @@
-const axios = require('axios');
+import axios from 'axios';
 
 const BASE = 'https://api.openaq.org/v3';
 
@@ -8,7 +8,7 @@ function headers() {
     : {};
 }
 
-function aqiFromPM25(pm25) {
+export function aqiFromPM25(pm25) {
   if (pm25 == null) return { aqi: null, label: 'Unknown', color: '#94a3b8' };
   if (pm25 <= 12)    return { aqi: Math.round(pm25 * 4.17),               label: 'Good',             color: '#22c55e' };
   if (pm25 <= 35.4)  return { aqi: Math.round(50  + (pm25 - 12)    * 2.1),  label: 'Moderate',         color: '#eab308' };
@@ -18,12 +18,10 @@ function aqiFromPM25(pm25) {
   return               { aqi: Math.round(300 + (pm25 - 250.4) * 0.997),     label: 'Hazardous',        color: '#7f1d1d' };
 }
 
-async function openaq(path, params = {}) {
+export async function openaq(path, params = {}) {
   const { data } = await axios.get(`${BASE}${path}`, {
     headers: headers(),
     params,
   });
   return data;
 }
-
-module.exports = { aqiFromPM25, openaq };

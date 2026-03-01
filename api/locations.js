@@ -1,6 +1,6 @@
-const { openaq } = require('./_openaq');
+import { openaq } from './_openaq.js';
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   const { city, country, limit = 20 } = req.query;
   try {
@@ -20,4 +20,4 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-};
+}

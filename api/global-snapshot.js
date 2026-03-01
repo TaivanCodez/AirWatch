@@ -1,6 +1,6 @@
-const { openaq, aqiFromPM25 } = require('./_openaq');
+import { openaq, aqiFromPM25 } from './_openaq.js';
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   try {
     const data = await openaq('/locations', { limit: 200, order_by: 'lastUpdated', sort: 'desc', has_geo: true });
@@ -23,4 +23,4 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-};
+}

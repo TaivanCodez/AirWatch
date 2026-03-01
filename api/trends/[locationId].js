@@ -1,9 +1,8 @@
-const { openaq } = require('../_openaq');
+import { openaq } from '../_openaq.js';
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  const { locationId } = req.query;
-  const { parameter = 'pm25', days = 30 } = req.query;
+  const { locationId, parameter = 'pm25', days = 30 } = req.query;
   try {
     const dateFrom = new Date();
     dateFrom.setDate(dateFrom.getDate() - Number(days));
@@ -23,4 +22,4 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-};
+}
