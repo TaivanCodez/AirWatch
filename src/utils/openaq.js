@@ -1,48 +1,48 @@
 import axios from 'axios';
 import { getAqiFromPM25 } from './aqi';
 
-const BASE = 'https://api.openaq.org/v3';
-
-// Optional: set VITE_OPENAQ_API_KEY in your .env for higher rate limits
-const headers = import.meta.env.VITE_OPENAQ_API_KEY
-  ? { 'X-API-Key': import.meta.env.VITE_OPENAQ_API_KEY }
-  : {};
+const BASE = 'https://api.openaq.org/v2';
 
 async function aq(path, params = {}) {
-  const { data } = await axios.get(`${BASE}${path}`, { headers, params });
+  const { data } = await axios.get(`${BASE}${path}`, { params });
   return data;
 }
 
 export async function fetchLocations(city, limit = 8) {
-  const data = await aq('/locations', { city, limit, order_by: 'lastUpdated', sort: 'desc' });
+  const data = await aq('/locations', {
+    city,
+    limit,
+    order_by: 'lastUpdated',
+    sort: 'desc',
+    has_geo: true,
+  });
   return (data.results || []).map(loc => ({
     id: loc.id,
     name: loc.name,
-    city: loc.locality || loc.city,
-    country: loc.country?.name || loc.country,
-    countryCode: loc.country?.code,
+    city: loc.city,
+    country: loc.country,
     lat: loc.coordinates?.latitude,
     lon: loc.coordinates?.longitude,
-    lastUpdated: loc.datetimeLast?.utc,
-    parameters: loc.parameters?.map(p => p.name) || [],
+    lastUpdated: loc.lastUpdated,
+    parameters: loc.parameters?.map(p => p.parameter) || [],
   }));
 }
 
 export async function fetchMeasurements(locationId) {
-  const data = await aq(`/locations/${locationId}/latest`);
+  const data = await aq(`/latest/${locationId}`);
   const readings = {};
-  for (const r of (data.results || [])) {
-    readings[r.parameter] = { value: r.value, unit: r.unit, lastUpdated: r.datetime?.utc };
+  for (const m of (data.results?.[0]?.measurements || [])) {
+    readings[m.parameter] = { value: m.value, unit: m.unit, lastUpdated: m.lastUpdated };
   }
   const pm25 = readings['pm25']?.value ?? null;
-  const aqi = getAqiFromPM25(pm25);
-  return { locationId, readings, aqi };
+  return { locationId, readings, aqi: getAqiFromPM25(pm25) };
 }
 
 export async function fetchTrends(locationId, parameter = 'pm25', days = 30) {
   const dateFrom = new Date();
   dateFrom.setDate(dateFrom.getDate() - Number(days));
-  const data = await aq(`/locations/${locationId}/measurements`, {
+  const data = await aq('/measurements', {
+    location_id: locationId,
     parameter,
     date_from: dateFrom.toISOString(),
     limit: 500,
@@ -50,7 +50,7 @@ export async function fetchTrends(locationId, parameter = 'pm25', days = 30) {
     sort: 'asc',
   });
   return (data.results || []).map(m => ({
-    date: m.date?.utc || m.datetime?.utc,
+    date: m.date?.utc,
     value: m.value,
     unit: m.unit,
   }));
@@ -66,17 +66,16 @@ export async function fetchGlobalSnapshot() {
   return (data.results || [])
     .filter(loc => loc.coordinates?.latitude && loc.coordinates?.longitude)
     .map(loc => {
-      const pm25 = loc.parameters?.find(p => p.name === 'pm25')?.lastValue ?? null;
-      const aqi = getAqiFromPM25(pm25);
+      const pm25 = loc.parameters?.find(p => p.parameter === 'pm25')?.lastValue ?? null;
       return {
         id: loc.id,
         name: loc.name,
-        city: loc.locality || loc.city,
-        country: loc.country?.name || loc.country,
+        city: loc.city,
+        country: loc.country,
         lat: loc.coordinates.latitude,
         lon: loc.coordinates.longitude,
         pm25,
-        aqi,
+        aqi: getAqiFromPM25(pm25),
       };
     });
 }
