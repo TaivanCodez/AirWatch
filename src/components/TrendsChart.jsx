@@ -7,7 +7,7 @@ import {
 import { PARAMETER_LABELS } from '../utils/aqi';
 
 const PARAMETERS = ['pm25', 'pm10', 'o3', 'no2', 'so2'];
-const DAY_OPTIONS = [7, 14, 30];
+const DAY_OPTIONS = [];
 
 function CustomTooltip({ active, payload, label, unit }) {
   if (!active || !payload?.length) return null;
@@ -32,7 +32,7 @@ export default function TrendsChart({ location }) {
   useEffect(() => {
     if (!location?.id) return;
     setLoading(true);
-    fetchTrends(location.id, parameter, days)
+    fetchTrends(location.id, parameter)
       .then(res => {
         const formatted = res.map(d => ({
           ...d,
@@ -58,7 +58,7 @@ export default function TrendsChart({ location }) {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h3 className="text-lg font-bold text-white">Pollution Trends</h3>
-          <p className="text-xs text-slate-400">{location.city || location.name} • {days}-day history</p>
+          <p className="text-xs text-slate-400">{location.city || location.name} • 7-day forecast</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <div className="flex bg-slate-800 rounded-lg overflow-hidden border border-slate-700">
@@ -81,11 +81,7 @@ export default function TrendsChart({ location }) {
               <button
                 key={d}
                 onClick={() => setDays(d)}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                  days === d
-                    ? 'bg-emerald-600 text-white'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
+                className="px-3 py-1.5 text-xs font-medium text-slate-400"
               >
                 {d}d
               </button>
@@ -97,7 +93,7 @@ export default function TrendsChart({ location }) {
       {avg != null && (
         <div className="flex items-center gap-4 text-sm">
           <span className="text-slate-400">
-            {days}-day avg: <span className="text-emerald-400 font-semibold">{avg} {paramInfo.unit}</span>
+            Forecast avg: <span className="text-emerald-400 font-semibold">{avg} {paramInfo.unit}</span>
           </span>
           {whoLine && (
             <span className="text-slate-400">

@@ -1,81 +1,60 @@
 import axios from 'axios';
-import { getAqiFromPM25 } from './aqi';
 
-const BASE = 'https://api.openaq.org/v2';
+// WAQI (World Air Quality Index) — supports CORS, no API key needed for demo
+const TOKEN = 'demo';
+const BASE = 'https://api.waqi.info';
 
-async function aq(path, params = {}) {
-  const { data } = await axios.get(`${BASE}${path}`, { params });
-  return data;
+async function waqi(path, params = {}) {
+  const { data } = await axios.get(`${BASE}${path}`, { params: { token: TOKEN, ...params } });
+  if (data.status !== 'ok') throw new Error(data.data || 'WAQI error');
+  return data.data;
+}
+
+export async function fetchGlobalSnapshot() {
+  const data = await waqi('/map/bounds/', { latlng: '-90,-180,90,180' });
+  return (data || [])
+    .filter(s => s.lat && s.lon)
+    .map(s => ({
+      id: s.uid,
+      name: s.station.name,
+      city: s.station.name,
+      country: '',
+      lat: s.lat,
+      lon: s.lon,
+      aqi: s.aqi === '-' ? null : Number(s.aqi),
+      pm25: null,
+    }));
 }
 
 export async function fetchLocations(city, limit = 8) {
-  const data = await aq('/locations', {
-    city,
-    limit,
-    order_by: 'lastUpdated',
-    sort: 'desc',
-    has_geo: true,
-  });
-  return (data.results || []).map(loc => ({
-    id: loc.id,
-    name: loc.name,
-    city: loc.city,
-    country: loc.country,
-    lat: loc.coordinates?.latitude,
-    lon: loc.coordinates?.longitude,
-    lastUpdated: loc.lastUpdated,
-    parameters: loc.parameters?.map(p => p.parameter) || [],
+  const data = await waqi('/search/', { keyword: city });
+  return (data || []).slice(0, limit).map(s => ({
+    id: s.uid,
+    name: s.station.name,
+    city: s.station.name,
+    country: s.station.country || '',
+    lat: s.station.geo?.[0],
+    lon: s.station.geo?.[1],
+    aqi: s.aqi === '-' ? null : Number(s.aqi),
   }));
 }
 
 export async function fetchMeasurements(locationId) {
-  const data = await aq(`/latest/${locationId}`);
+  const data = await waqi(`/feed/@${locationId}/`);
+  const iaqi = data.iaqi || {};
+  const UNITS = { pm25: 'µg/m³', pm10: 'µg/m³', o3: 'ppb', no2: 'ppb', so2: 'ppb', co: 'ppm' };
   const readings = {};
-  for (const m of (data.results?.[0]?.measurements || [])) {
-    readings[m.parameter] = { value: m.value, unit: m.unit, lastUpdated: m.lastUpdated };
+  for (const [param, unit] of Object.entries(UNITS)) {
+    if (iaqi[param] != null) {
+      readings[param] = { value: iaqi[param].v, unit, lastUpdated: data.time?.s };
+    }
   }
-  const pm25 = readings['pm25']?.value ?? null;
-  return { locationId, readings, aqi: getAqiFromPM25(pm25) };
+  return { locationId, readings, aqi: typeof data.aqi === 'number' ? data.aqi : null };
 }
 
-export async function fetchTrends(locationId, parameter = 'pm25', days = 30) {
-  const dateFrom = new Date();
-  dateFrom.setDate(dateFrom.getDate() - Number(days));
-  const data = await aq('/measurements', {
-    location_id: locationId,
-    parameter,
-    date_from: dateFrom.toISOString(),
-    limit: 500,
-    order_by: 'datetime',
-    sort: 'asc',
-  });
-  return (data.results || []).map(m => ({
-    date: m.date?.utc,
-    value: m.value,
-    unit: m.unit,
-  }));
-}
-
-export async function fetchGlobalSnapshot() {
-  const data = await aq('/locations', {
-    limit: 200,
-    order_by: 'lastUpdated',
-    sort: 'desc',
-    has_geo: true,
-  });
-  return (data.results || [])
-    .filter(loc => loc.coordinates?.latitude && loc.coordinates?.longitude)
-    .map(loc => {
-      const pm25 = loc.parameters?.find(p => p.parameter === 'pm25')?.lastValue ?? null;
-      return {
-        id: loc.id,
-        name: loc.name,
-        city: loc.city,
-        country: loc.country,
-        lat: loc.coordinates.latitude,
-        lon: loc.coordinates.longitude,
-        pm25,
-        aqi: getAqiFromPM25(pm25),
-      };
-    });
+export async function fetchTrends(locationId, parameter = 'pm25') {
+  const data = await waqi(`/feed/@${locationId}/`);
+  const forecast = data.forecast?.daily?.[parameter] || [];
+  const unit = (parameter === 'pm25' || parameter === 'pm10') ? 'µg/m³' : 'ppb';
+  return forecast.map(d => ({ date: d.day + 'T12:00:00Z', value: d.avg, unit }));
 }
